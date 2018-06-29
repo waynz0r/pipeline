@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  description: Pipeline v0.3.0 swagger
+  description: "Pipeline is a RESTful API to deploy cloud native microservices in public cloud and on-premise. It simplifies and abstracts all the details of provisioning the cloud and Kubernetes infrastructure, deploying, monitoring and managing the applications lifecycle."
   version: "0.3.0"
   title: Pipeline API
   contact:
