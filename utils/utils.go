@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"time"
 )
 
 //GetEnv retrieves ENV variable, fallback if not set
@@ -110,4 +111,9 @@ func ValidateCloudType(cloudType string) error {
 	default:
 		return pkgErrors.ErrorNotSupportedCloudType
 	}
+}
+
+// FormatTimestamp returns string format of seconds
+func FormatTimestamp(sec int64) string {
+	return time.Unix(sec, 0).String()
 }

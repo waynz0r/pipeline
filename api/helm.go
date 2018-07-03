@@ -6,6 +6,7 @@ import (
 	"github.com/banzaicloud/pipeline/helm"
 	pkgCommmon "github.com/banzaicloud/pipeline/pkg/common"
 	pkgHelm "github.com/banzaicloud/pipeline/pkg/helm"
+	"github.com/banzaicloud/pipeline/utils"
 	"github.com/ghodss/yaml"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -106,12 +107,18 @@ func ListDeployments(c *gin.Context) {
 	var releases []pkgHelm.ListDeploymentResponse
 	if response != nil && len(response.Releases) > 0 {
 		for _, r := range response.Releases {
+
+			createdAt := utils.FormatTimestamp(r.Info.FirstDeployed.Seconds)
+
 			body := pkgHelm.ListDeploymentResponse{
-				Name:    r.Name,
-				Chart:   fmt.Sprintf("%s-%s", r.Chart.Metadata.Name, r.Chart.Metadata.Version),
-				Version: r.Version,
-				Updated: timeconv.String(r.Info.LastDeployed),
-				Status:  r.Info.Status.Code.String()}
+				Name:      r.Name,
+				Chart:     fmt.Sprintf("%s-%s", r.Chart.Metadata.Name, r.Chart.Metadata.Version),
+				Version:   r.Version,
+				Updated:   timeconv.String(r.Info.LastDeployed),
+				Status:    r.Info.Status.Code.String(),
+				Namespace: r.Namespace,
+				CreatedAt: createdAt,
+			}
 			releases = append(releases, body)
 		}
 	} else {

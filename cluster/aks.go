@@ -1,22 +1,34 @@
 package cluster
 
 import (
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2018-04-01/compute"
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2017-09-30/containerservice"
 	azureClient "github.com/banzaicloud/azure-aks-client/client"
 	azureCluster "github.com/banzaicloud/azure-aks-client/cluster"
 	azureType "github.com/banzaicloud/azure-aks-client/types"
+	"github.com/banzaicloud/pipeline/auth"
 	"github.com/banzaicloud/pipeline/model"
 	pkgCluster "github.com/banzaicloud/pipeline/pkg/cluster"
 	pkgAzure "github.com/banzaicloud/pipeline/pkg/cluster/azure"
+	pkgCommon "github.com/banzaicloud/pipeline/pkg/common"
 	pkgErrors "github.com/banzaicloud/pipeline/pkg/errors"
 	"github.com/banzaicloud/pipeline/secret"
 	"github.com/banzaicloud/pipeline/secret/verify"
 	"github.com/banzaicloud/pipeline/utils"
 	"github.com/go-errors/errors"
+	"time"
+)
+
+const (
+	statusSucceeded = "Succeeded"
+)
+
+const (
+	poolNameKey = "poolName"
 )
 
 //CreateAKSClusterFromRequest creates ClusterModel struct from the request
-func CreateAKSClusterFromRequest(request *pkgCluster.CreateClusterRequest, orgId uint) (*AKSCluster, error) {
+func CreateAKSClusterFromRequest(request *pkgCluster.CreateClusterRequest, orgId, userId uint) (*AKSCluster, error) {
 	log.Debug("Create ClusterModel struct from the request")
 	var cluster AKSCluster
 
@@ -24,6 +36,7 @@ func CreateAKSClusterFromRequest(request *pkgCluster.CreateClusterRequest, orgId
 	if request.Properties.CreateClusterAzure.NodePools != nil {
 		for name, np := range request.Properties.CreateClusterAzure.NodePools {
 			nodePools = append(nodePools, &model.AzureNodePoolModel{
+				CreatedBy:        userId,
 				Name:             name,
 				Autoscaling:      np.Autoscaling,
 				NodeMinCount:     np.MinCount,
@@ -39,6 +52,7 @@ func CreateAKSClusterFromRequest(request *pkgCluster.CreateClusterRequest, orgId
 		Location:       request.Location,
 		Cloud:          request.Cloud,
 		OrganizationId: orgId,
+		CreatedBy:      userId,
 		SecretId:       request.SecretId,
 		Azure: model.AzureClusterModel{
 			ResourceGroup:     request.Properties.CreateClusterAzure.ResourceGroup,
@@ -215,6 +229,9 @@ func (c *AKSCluster) GetStatus() (*pkgCluster.GetClusterStatusResponse, error) {
 		}
 	}
 
+	userId := c.modelCluster.CreatedBy
+	userName := auth.GetUserNickNameById(userId)
+
 	return &pkgCluster.GetClusterStatusResponse{
 		Status:        c.modelCluster.Status,
 		StatusMessage: c.modelCluster.StatusMessage,
@@ -222,7 +239,12 @@ func (c *AKSCluster) GetStatus() (*pkgCluster.GetClusterStatusResponse, error) {
 		Location:      c.modelCluster.Location,
 		Cloud:         c.modelCluster.Cloud,
 		ResourceID:    c.modelCluster.ID,
-		NodePools:     nodePools,
+		CreatorBaseFields: pkgCommon.CreatorBaseFields{
+			CreatedAt:   c.modelCluster.CreatedAt.String(),
+			CreatorName: userName,
+			CreatorId:   userId,
+		},
+		NodePools: nodePools,
 	}, nil
 }
 
@@ -249,7 +271,7 @@ func (c *AKSCluster) DeleteCluster() error {
 }
 
 // UpdateCluster updates AKS cluster in cloud
-func (c *AKSCluster) UpdateCluster(request *pkgCluster.UpdateClusterRequest) error {
+func (c *AKSCluster) UpdateCluster(request *pkgCluster.UpdateClusterRequest, userId uint) error {
 	client, err := c.GetAKSClient()
 	if err != nil {
 		return err
@@ -293,6 +315,8 @@ func (c *AKSCluster) UpdateCluster(request *pkgCluster.UpdateClusterRequest) err
 
 				nodePoolAfterUpdate = append(nodePoolAfterUpdate, &model.AzureNodePoolModel{
 					ID:               existNodePool.ID,
+					CreatedAt:        time.Now(),
+					CreatedBy:        userId,
 					ClusterModelId:   existNodePool.ClusterModelId,
 					Name:             name,
 					Autoscaling:      np.Autoscaling,
@@ -519,7 +543,7 @@ func (c *AKSCluster) UpdateStatus(status, statusMessage string) error {
 }
 
 // GetClusterDetails gets cluster details from cloud
-func (c *AKSCluster) GetClusterDetails() (*pkgCluster.ClusterDetailsResponse, error) {
+func (c *AKSCluster) GetClusterDetails() (*pkgCluster.DetailsResponse, error) {
 
 	client, err := c.GetAKSClient()
 	if err != nil {
@@ -535,10 +559,39 @@ func (c *AKSCluster) GetClusterDetails() (*pkgCluster.ClusterDetailsResponse, er
 	log.Info("Get cluster success")
 	stage := resp.Value.Properties.ProvisioningState
 	log.Info("Cluster stage is", stage)
-	if stage == "Succeeded" {
-		return &pkgCluster.ClusterDetailsResponse{
-			Name: c.modelCluster.Name,
-			Id:   c.modelCluster.ID,
+	if stage == statusSucceeded {
+
+		userId, userName := GetUserIdAndName(c.modelCluster)
+
+		nodePools := make(map[string]*pkgCluster.NodeDetails)
+
+		for _, np := range c.modelCluster.Azure.NodePools {
+			if np != nil {
+
+				userId := np.CreatedBy
+				userName := auth.GetUserNickNameById(userId)
+
+				nodePools[np.Name] = &pkgCluster.NodeDetails{
+					CreatorBaseFields: pkgCommon.CreatorBaseFields{
+						CreatedAt:   np.CreatedAt.String(),
+						CreatorName: userName,
+						CreatorId:   userId,
+					},
+					Version: c.modelCluster.Azure.KubernetesVersion,
+				}
+			}
+		}
+
+		return &pkgCluster.DetailsResponse{
+			CreatorBaseFields: pkgCommon.CreatorBaseFields{
+				CreatedAt:   c.modelCluster.CreatedAt.String(),
+				CreatorName: userName,
+				CreatorId:   userId,
+			},
+			Name:      c.modelCluster.Name,
+			Id:        c.modelCluster.ID,
+			Location:  c.modelCluster.Location,
+			NodePools: nodePools,
 		}, nil
 
 	}
@@ -683,4 +736,36 @@ func (c *AKSCluster) RequiresSshPublicKey() bool {
 // ReloadFromDatabase load cluster from DB
 func (c *AKSCluster) ReloadFromDatabase() error {
 	return c.modelCluster.ReloadFromDatabase()
+}
+
+// ListNodeNames returns node names to label them
+func (c *AKSCluster) ListNodeNames() (labels pkgCommon.NodeNames, err error) {
+
+	var client azureClient.ClusterManager
+	client, err = c.GetAKSClient()
+	if err != nil {
+		return
+	}
+
+	client.With(log)
+
+	labels = make(map[string][]string)
+
+	var vms []compute.VirtualMachine
+	vms, err = azureClient.ListVirtualMachines(client, c.modelCluster.Azure.ResourceGroup, c.modelCluster.Name, c.modelCluster.Location)
+	for _, np := range c.modelCluster.Azure.NodePools {
+		if np != nil {
+			for _, vm := range vms {
+				if vm.OsProfile != nil && vm.OsProfile.ComputerName != nil {
+					for key, tag := range vm.Tags {
+						if poolNameKey == key && tag != nil && *tag == np.Name {
+							labels[np.Name] = append(labels[np.Name], *vm.OsProfile.ComputerName)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return
 }

@@ -24,6 +24,7 @@ type Application struct {
 	Resources      string        `json:"resources"`
 	Status         string        `json:"status"`
 	Message        string        `json:"message"`
+	CreatedBy      uint          `json:"creatorId"`
 }
 
 // Deployment for Application

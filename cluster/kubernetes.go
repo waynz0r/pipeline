@@ -3,15 +3,17 @@ package cluster
 import (
 	"encoding/base64"
 
+	"github.com/banzaicloud/pipeline/auth"
 	"github.com/banzaicloud/pipeline/model"
 	pkgCluster "github.com/banzaicloud/pipeline/pkg/cluster"
+	pkgCommon "github.com/banzaicloud/pipeline/pkg/common"
 	pkgSecret "github.com/banzaicloud/pipeline/pkg/secret"
 	"github.com/banzaicloud/pipeline/secret"
 	"gopkg.in/yaml.v2"
 )
 
 // CreateKubernetesClusterFromRequest creates ClusterModel struct from the request
-func CreateKubernetesClusterFromRequest(request *pkgCluster.CreateClusterRequest, orgId uint) (*KubeCluster, error) {
+func CreateKubernetesClusterFromRequest(request *pkgCluster.CreateClusterRequest, orgId, userId uint) (*KubeCluster, error) {
 
 	log.Debug("Create ClusterModel struct from the request")
 	var cluster KubeCluster
@@ -21,6 +23,7 @@ func CreateKubernetesClusterFromRequest(request *pkgCluster.CreateClusterRequest
 		Location:       request.Location,
 		Cloud:          request.Cloud,
 		OrganizationId: orgId,
+		CreatedBy:      userId,
 		SecretId:       request.SecretId,
 		Kubernetes: model.KubernetesClusterModel{
 			Metadata: request.Properties.CreateKubernetes.Metadata,
@@ -85,6 +88,9 @@ func (b *KubeCluster) GetStatus() (*pkgCluster.GetClusterStatusResponse, error) 
 		db.Find(&b.modelCluster, model.ClusterModel{ID: b.GetID()})
 	}
 
+	userId := b.modelCluster.CreatedBy
+	userName := auth.GetUserNickNameById(userId)
+
 	return &pkgCluster.GetClusterStatusResponse{
 		Status:        b.modelCluster.Status,
 		StatusMessage: b.modelCluster.StatusMessage,
@@ -92,7 +98,12 @@ func (b *KubeCluster) GetStatus() (*pkgCluster.GetClusterStatusResponse, error) 
 		Location:      b.modelCluster.Location,
 		Cloud:         pkgCluster.Kubernetes,
 		ResourceID:    b.modelCluster.ID,
-		NodePools:     nil,
+		CreatorBaseFields: pkgCommon.CreatorBaseFields{
+			CreatedAt:   b.modelCluster.CreatedAt.String(),
+			CreatorName: userName,
+			CreatorId:   userId,
+		},
+		NodePools: nil,
 	}, nil
 }
 
@@ -102,7 +113,7 @@ func (b *KubeCluster) DeleteCluster() error {
 }
 
 // UpdateCluster updates cluster in cloud, in this case no update function
-func (b *KubeCluster) UpdateCluster(*pkgCluster.UpdateClusterRequest) error {
+func (b *KubeCluster) UpdateCluster(*pkgCluster.UpdateClusterRequest, uint) error {
 	return nil
 }
 
@@ -189,15 +200,19 @@ func (b *KubeCluster) UpdateStatus(status, statusMessage string) error {
 }
 
 // GetClusterDetails gets cluster details from cloud
-func (b *KubeCluster) GetClusterDetails() (*pkgCluster.ClusterDetailsResponse, error) {
-	status, err := b.GetStatus()
-	if err != nil {
-		return nil, err
-	}
+func (b *KubeCluster) GetClusterDetails() (*pkgCluster.DetailsResponse, error) {
 
-	return &pkgCluster.ClusterDetailsResponse{
-		Name: status.Name,
-		Id:   status.ResourceID,
+	userId, userName := GetUserIdAndName(b.modelCluster)
+
+	return &pkgCluster.DetailsResponse{
+		CreatorBaseFields: pkgCommon.CreatorBaseFields{
+			CreatedAt:   b.modelCluster.CreatedAt.String(),
+			CreatorName: userName,
+			CreatorId:   userId,
+		},
+		Name:     b.modelCluster.Name,
+		Id:       b.modelCluster.ID,
+		Location: b.modelCluster.Location,
 	}, nil
 }
 
@@ -234,4 +249,9 @@ func (b *KubeCluster) GetK8sConfig() ([]byte, error) {
 // ReloadFromDatabase load cluster from DB
 func (b *KubeCluster) ReloadFromDatabase() error {
 	return b.modelCluster.ReloadFromDatabase()
+}
+
+// ListNodeNames returns node names to label them
+func (b *KubeCluster) ListNodeNames() (nodeNames pkgCommon.NodeNames, err error) {
+	return
 }

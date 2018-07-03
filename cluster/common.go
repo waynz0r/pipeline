@@ -7,9 +7,11 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/banzaicloud/pipeline/auth"
 	"github.com/banzaicloud/pipeline/config"
 	"github.com/banzaicloud/pipeline/model"
 	pkgCluster "github.com/banzaicloud/pipeline/pkg/cluster"
+	pkgCommon "github.com/banzaicloud/pipeline/pkg/common"
 	pkgErrors "github.com/banzaicloud/pipeline/pkg/errors"
 	pkgSecret "github.com/banzaicloud/pipeline/pkg/secret"
 	"github.com/banzaicloud/pipeline/secret"
@@ -36,7 +38,7 @@ type CommonCluster interface {
 	GetType() string
 	GetStatus() (*pkgCluster.GetClusterStatusResponse, error)
 	DeleteCluster() error
-	UpdateCluster(*pkgCluster.UpdateClusterRequest) error
+	UpdateCluster(*pkgCluster.UpdateClusterRequest, uint) error
 	GetID() uint
 	GetSecretId() string
 	GetSshSecretId() string
@@ -48,7 +50,7 @@ type CommonCluster interface {
 	DeleteFromDatabase() error
 	GetOrganizationId() uint
 	UpdateStatus(string, string) error
-	GetClusterDetails() (*pkgCluster.ClusterDetailsResponse, error)
+	GetClusterDetails() (*pkgCluster.DetailsResponse, error)
 	ValidateCreationFields(r *pkgCluster.CreateClusterRequest) error
 	GetSecretWithValidation() (*secret.SecretItemResponse, error)
 	GetSshSecretWithValidation() (*secret.SecretItemResponse, error)
@@ -57,6 +59,7 @@ type CommonCluster interface {
 	GetK8sConfig() ([]byte, error)
 	RequiresSshPublicKey() bool
 	ReloadFromDatabase() error
+	ListNodeNames() (pkgCommon.NodeNames, error)
 }
 
 // CommonClusterBase holds the fields that is common to all cluster types
@@ -257,7 +260,7 @@ func GetCommonClusterFromModel(modelCluster *model.ClusterModel) (CommonCluster,
 }
 
 //CreateCommonClusterFromRequest creates a CommonCluster from a request
-func CreateCommonClusterFromRequest(createClusterRequest *pkgCluster.CreateClusterRequest, orgId uint) (CommonCluster, error) {
+func CreateCommonClusterFromRequest(createClusterRequest *pkgCluster.CreateClusterRequest, orgId, userId uint) (CommonCluster, error) {
 
 	if err := createClusterRequest.AddDefaults(); err != nil {
 		return nil, err
@@ -272,7 +275,7 @@ func CreateCommonClusterFromRequest(createClusterRequest *pkgCluster.CreateClust
 	switch cloudType {
 	case pkgCluster.Amazon:
 		//Create Amazon struct
-		awsCluster, err := CreateAWSClusterFromRequest(createClusterRequest, orgId)
+		awsCluster, err := CreateAWSClusterFromRequest(createClusterRequest, orgId, userId)
 		if err != nil {
 			return nil, err
 		}
@@ -280,7 +283,7 @@ func CreateCommonClusterFromRequest(createClusterRequest *pkgCluster.CreateClust
 
 	case pkgCluster.Azure:
 		// Create Azure struct
-		aksCluster, err := CreateAKSClusterFromRequest(createClusterRequest, orgId)
+		aksCluster, err := CreateAKSClusterFromRequest(createClusterRequest, orgId, userId)
 		if err != nil {
 			return nil, err
 		}
@@ -288,7 +291,7 @@ func CreateCommonClusterFromRequest(createClusterRequest *pkgCluster.CreateClust
 
 	case pkgCluster.Google:
 		// Create Google struct
-		gkeCluster, err := CreateGKEClusterFromRequest(createClusterRequest, orgId)
+		gkeCluster, err := CreateGKEClusterFromRequest(createClusterRequest, orgId, userId)
 		if err != nil {
 			return nil, err
 		}
@@ -296,7 +299,7 @@ func CreateCommonClusterFromRequest(createClusterRequest *pkgCluster.CreateClust
 
 	case pkgCluster.Dummy:
 		// Create Dummy struct
-		dummy, err := CreateDummyClusterFromRequest(createClusterRequest, orgId)
+		dummy, err := CreateDummyClusterFromRequest(createClusterRequest, orgId, userId)
 		if err != nil {
 			return nil, err
 		}
@@ -305,7 +308,7 @@ func CreateCommonClusterFromRequest(createClusterRequest *pkgCluster.CreateClust
 
 	case pkgCluster.Kubernetes:
 		// Create Kubernetes struct
-		kubeCluster, err := CreateKubernetesClusterFromRequest(createClusterRequest, orgId)
+		kubeCluster, err := CreateKubernetesClusterFromRequest(createClusterRequest, orgId, userId)
 		if err != nil {
 			return nil, err
 		}
@@ -361,4 +364,11 @@ func CleanStateStore(path string) error {
 func CleanHelmFolder(organizationName string) error {
 	helmPath := config.GetHelmPath(organizationName)
 	return os.RemoveAll(helmPath)
+}
+
+// GetUserIdAndName returns userId and userName from DB
+func GetUserIdAndName(modelCluster *model.ClusterModel) (userId uint, userName string) {
+	userId = modelCluster.CreatedBy
+	userName = auth.GetUserNickNameById(userId)
+	return
 }

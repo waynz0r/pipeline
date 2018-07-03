@@ -320,3 +320,12 @@ func subSet(a, b []string) bool {
 	}
 	return true
 }
+
+// FindApplicationsByCluster loads applications from DB by clusterID
+func FindApplicationsByCluster(clusterId uint) (apps []model.Application, err error) {
+	log.Info("loads applications by clusterID [%d]", clusterId)
+	db := model.GetDB()
+	err = db.Where(model.Application{ClusterID: clusterId}).Find(&apps).Error
+
+	return
+}
