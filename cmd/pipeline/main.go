@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/banzaicloud/pipeline/internal/clustergroup"
 	"github.com/jinzhu/gorm"
 
 	evbus "github.com/asaskevich/EventBus"
@@ -249,6 +250,9 @@ func main() {
 		),
 	})
 
+	clusterGroupManager := clustergroup.NewManager(clusterManager, db, log, errorHandler)
+	clusterGroupApi := api.NewClusterGroupAPI(clusterManager, clusterGroupManager, db, log, errorHandler)
+
 	nplsApi := api.NewNodepoolManagerAPI(clusterGetter, log, errorHandler)
 
 	//Initialise Gin router
@@ -418,6 +422,21 @@ func main() {
 			orgs.POST("/:orgid/clusters/:id/imagescan", api.ScanImages)
 			orgs.GET("/:orgid/clusters/:id/imagescan/:imagedigest", api.GetScanResult)
 			orgs.GET("/:orgid/clusters/:id/imagescan/:imagedigest/vuln", api.GetImageVulnerabilities)
+
+			// ClusterGroupAPI
+			orgs.POST("/:orgid/clustergroups", clusterGroupApi.CreateClusterGroup)
+			orgs.GET("/:orgid/clustergroups", clusterGroupApi.GetAllClusterGroups)
+			orgs.PUT("/:orgid/clustergroups", clusterGroupApi.UpdateClusterGroup)
+			orgs.GET("/:orgid/clustergroups/:id", clusterGroupApi.GetClusterGroup)
+			orgs.DELETE("/:orgid/clustergroups/:id", clusterGroupApi.DeleteClusterGroup)
+
+			orgs.GET("/:orgid/clustergroups/:id/feature/:featureName", clusterGroupApi.GetFeature)
+			orgs.POST("/:orgid/clustergroups/:id/feature/:featureName", clusterGroupApi.SetFeature)
+
+			//orgs.POST("/:orgid/clustergroups/:id/deployments", clusterGroupApi.CreateClusterGroups)
+			//orgs.GET("/:orgid/clustergroups/:id/deployments", clusterGroupApi.CreateClusterGroups)
+			//orgs.GET("/:orgid/clustergroups/:id/deployments/:name", clusterGroupApi.CreateClusterGroups)
+			//orgs.PUT("/:orgid/clustergroups/:id/deployments/:name", clusterGroupApi.CreateClusterGroups)
 
 			clusters := orgs.Group("/:orgid/clusters/:id")
 
