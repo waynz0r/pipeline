@@ -433,10 +433,11 @@ func main() {
 			orgs.GET("/:orgid/clustergroups/:id/feature/:featureName", clusterGroupApi.GetFeature)
 			orgs.POST("/:orgid/clustergroups/:id/feature/:featureName", clusterGroupApi.SetFeature)
 
-			//orgs.POST("/:orgid/clustergroups/:id/deployments", clusterGroupApi.CreateClusterGroups)
-			//orgs.GET("/:orgid/clustergroups/:id/deployments", clusterGroupApi.CreateClusterGroups)
-			//orgs.GET("/:orgid/clustergroups/:id/deployments/:name", clusterGroupApi.CreateClusterGroups)
-			//orgs.PUT("/:orgid/clustergroups/:id/deployments/:name", clusterGroupApi.CreateClusterGroups)
+			orgs.POST("/:orgid/clustergroups/:id/deployments", clusterGroupApi.CreateDeployment)
+			orgs.GET("/:orgid/clustergroups/:id/deployments", clusterGroupApi.ListDeployments)
+			orgs.GET("/:orgid/clustergroups/:id/deployments/:name", clusterGroupApi.GetDeployment)
+			orgs.PUT("/:orgid/clustergroups/:id/deployments/:name", clusterGroupApi.UpgradeDeployment)
+			orgs.DELETE("/:orgid/clustergroups/:id/deployments/:name", clusterGroupApi.DeleteDeployment)
 
 			clusters := orgs.Group("/:orgid/clusters/:id")
 
