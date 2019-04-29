@@ -253,6 +253,9 @@ func main() {
 	clusterGroupManager := clustergroup.NewManager(clusterManager, db, log, errorHandler)
 	clusterGroupApi := api.NewClusterGroupAPI(clusterManager, clusterGroupManager, db, log, errorHandler)
 
+	federationHandler := clustergroup.NewFederationHandler(logger, errorHandler)
+	clusterGroupManager.RegisterFeatureHandler(clustergroup.FederationFeatureName, federationHandler)
+
 	nplsApi := api.NewNodepoolManagerAPI(clusterGetter, log, errorHandler)
 
 	//Initialise Gin router
@@ -426,7 +429,7 @@ func main() {
 			// ClusterGroupAPI
 			orgs.POST("/:orgid/clustergroups", clusterGroupApi.CreateClusterGroup)
 			orgs.GET("/:orgid/clustergroups", clusterGroupApi.GetAllClusterGroups)
-			orgs.PUT("/:orgid/clustergroups", clusterGroupApi.UpdateClusterGroup)
+			orgs.PUT("/:orgid/clustergroups/:id", clusterGroupApi.UpdateClusterGroup)
 			orgs.GET("/:orgid/clustergroups/:id", clusterGroupApi.GetClusterGroup)
 			orgs.DELETE("/:orgid/clustergroups/:id", clusterGroupApi.DeleteClusterGroup)
 
