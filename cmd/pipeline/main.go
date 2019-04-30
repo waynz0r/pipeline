@@ -251,7 +251,8 @@ func main() {
 	})
 
 	clusterGroupManager := clustergroup.NewManager(clusterManager, db, log, errorHandler)
-	clusterGroupApi := api.NewClusterGroupAPI(clusterManager, clusterGroupManager, db, log, errorHandler)
+	clusterGroupDeploymentManager := clustergroup.NewCGDeploymentManager(db, log, errorHandler)
+	clusterGroupApi := api.NewClusterGroupAPI(clusterGroupManager, clusterGroupDeploymentManager, log, errorHandler)
 
 	federationHandler := clustergroup.NewFederationHandler(logger, errorHandler)
 	clusterGroupManager.RegisterFeatureHandler(clustergroup.FederationFeatureName, federationHandler)
