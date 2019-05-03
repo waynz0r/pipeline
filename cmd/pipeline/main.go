@@ -253,7 +253,9 @@ func main() {
 
 	clusterGroupManager := clustergroup.NewManager(clusterManager, db, log, errorHandler)
 	federationHandler := clustergroup.NewFederationHandler(logger, errorHandler)
+	deploymentManager := clustergroup.NewCGDeploymentManager(db, log, errorHandler)
 	clusterGroupManager.RegisterFeatureHandler(clustergroup.FederationFeatureName, federationHandler)
+	clusterGroupManager.RegisterFeatureHandler(clustergroup.DeploymentFeatureName, deploymentManager)
 
 	nplsApi := api.NewNodepoolManagerAPI(clusterGetter, log, errorHandler)
 
@@ -426,7 +428,7 @@ func main() {
 			orgs.GET("/:orgid/clusters/:id/imagescan/:imagedigest/vuln", api.GetImageVulnerabilities)
 
 			// ClusterGroupAPI
-			cgroupsAPI := cgAPI.New(clusterGroupManager, clustergroup.NewCGDeploymentManager(db, log, errorHandler), log, errorHandler)
+			cgroupsAPI := cgAPI.New(clusterGroupManager, deploymentManager, log, errorHandler)
 			cgroupsAPI.AddRoutes(orgs.Group("/:orgid/clustergroups"))
 
 			clusters := orgs.Group("/:orgid/clusters/:id")
