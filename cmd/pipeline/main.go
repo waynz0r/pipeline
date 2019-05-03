@@ -36,6 +36,7 @@ import (
 	"github.com/banzaicloud/pipeline/api/ark/schedules"
 	"github.com/banzaicloud/pipeline/api/cluster/namespace"
 	"github.com/banzaicloud/pipeline/api/cluster/pke"
+	cgAPI "github.com/banzaicloud/pipeline/api/clustergroup"
 	"github.com/banzaicloud/pipeline/api/common"
 	"github.com/banzaicloud/pipeline/api/middleware"
 	"github.com/banzaicloud/pipeline/auth"
@@ -251,9 +252,6 @@ func main() {
 	})
 
 	clusterGroupManager := clustergroup.NewManager(clusterManager, db, log, errorHandler)
-	clusterGroupDeploymentManager := clustergroup.NewCGDeploymentManager(db, log, errorHandler)
-	clusterGroupApi := api.NewClusterGroupAPI(clusterGroupManager, clusterGroupDeploymentManager, log, errorHandler)
-
 	federationHandler := clustergroup.NewFederationHandler(logger, errorHandler)
 	clusterGroupManager.RegisterFeatureHandler(clustergroup.FederationFeatureName, federationHandler)
 
@@ -428,20 +426,8 @@ func main() {
 			orgs.GET("/:orgid/clusters/:id/imagescan/:imagedigest/vuln", api.GetImageVulnerabilities)
 
 			// ClusterGroupAPI
-			orgs.POST("/:orgid/clustergroups", clusterGroupApi.CreateClusterGroup)
-			orgs.GET("/:orgid/clustergroups", clusterGroupApi.GetAllClusterGroups)
-			orgs.PUT("/:orgid/clustergroups/:id", clusterGroupApi.UpdateClusterGroup)
-			orgs.GET("/:orgid/clustergroups/:id", clusterGroupApi.GetClusterGroup)
-			orgs.DELETE("/:orgid/clustergroups/:id", clusterGroupApi.DeleteClusterGroup)
-
-			orgs.GET("/:orgid/clustergroups/:id/feature/:featureName", clusterGroupApi.GetFeature)
-			orgs.POST("/:orgid/clustergroups/:id/feature/:featureName", clusterGroupApi.SetFeature)
-
-			orgs.POST("/:orgid/clustergroups/:id/deployments", clusterGroupApi.CreateDeployment)
-			orgs.GET("/:orgid/clustergroups/:id/deployments", clusterGroupApi.ListDeployments)
-			orgs.GET("/:orgid/clustergroups/:id/deployments/:name", clusterGroupApi.GetDeployment)
-			orgs.PUT("/:orgid/clustergroups/:id/deployments/:name", clusterGroupApi.UpgradeDeployment)
-			orgs.DELETE("/:orgid/clustergroups/:id/deployments/:name", clusterGroupApi.DeleteDeployment)
+			cgroupsAPI := cgAPI.New(clusterGroupManager, clustergroup.NewCGDeploymentManager(db, log, errorHandler), log, errorHandler)
+			cgroupsAPI.AddRoutes(orgs.Group("/:orgid/clustergroups"))
 
 			clusters := orgs.Group("/:orgid/clusters/:id")
 
