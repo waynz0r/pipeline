@@ -26,6 +26,13 @@ import (
 	"github.com/jinzhu/gorm"
 
 	evbus "github.com/asaskevich/EventBus"
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	"github.com/goph/emperror"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
+
 	ginprometheus "github.com/banzaicloud/go-gin-prometheus"
 	"github.com/banzaicloud/pipeline/api"
 	"github.com/banzaicloud/pipeline/api/ark/backups"
@@ -68,12 +75,6 @@ import (
 	"github.com/banzaicloud/pipeline/secret"
 	"github.com/banzaicloud/pipeline/spotguide"
 	"github.com/banzaicloud/pipeline/spotguide/scm"
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
-	"github.com/goph/emperror"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 )
 
 //Common logger for package
@@ -252,8 +253,8 @@ func main() {
 		),
 	})
 
-	clusterGroupManager := clustergroup.NewManager(cgroupAdapter.NewClusterGetter(clusterManager), clustergroup.NewClusterGroupRepository(db, logger), log, errorHandler)
-	federationHandler := clustergroup.NewFederationHandler(logger, errorHandler)
+	clusterGroupManager := clustergroup.NewManager(cgroupAdapter.NewClusterGetter(clusterManager), clustergroup.NewClusterGroupRepository(db, log), log, errorHandler)
+	federationHandler := clustergroup.NewFederationHandler(log, errorHandler)
 	deploymentManager := clustergroup.NewCGDeploymentManager(db, log, errorHandler)
 	clusterGroupManager.RegisterFeatureHandler(clustergroup.FederationFeatureName, federationHandler)
 	clusterGroupManager.RegisterFeatureHandler(clustergroup.DeploymentFeatureName, deploymentManager)
@@ -429,7 +430,7 @@ func main() {
 			orgs.GET("/:orgid/clusters/:id/imagescan/:imagedigest/vuln", api.GetImageVulnerabilities)
 
 			// ClusterGroupAPI
-			cgroupsAPI := cgroupAPI.New(clusterGroupManager, deploymentManager, log, errorHandler)
+			cgroupsAPI := cgroupAPI.NewAPI(clusterGroupManager, deploymentManager, log, errorHandler)
 			cgroupsAPI.AddRoutes(orgs.Group("/:orgid/clustergroups"))
 
 			clusters := orgs.Group("/:orgid/clusters/:id")
